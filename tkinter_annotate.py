@@ -107,10 +107,10 @@ class Mousewheel_Support(object):
         
         return onMouseWheel
 
-class Scrolling_Area(Frame, object):
+class Scrolling_Area(ctk.CTkFrame, object):
 
     def __init__(self, master, width=None, anchor=N, height=None, mousewheel_speed = 2, scroll_horizontally=True, xscrollbar=None, scroll_vertically=True, yscrollbar=None, outer_background=None, inner_frame=Frame, **kw):
-        Frame.__init__(self, master, class_=self.__class__)
+        ctk.CTkFrame.__init__(self, master, class_=self.__class__)
 
         if outer_background:
             self.configure(background=outer_background)
@@ -205,360 +205,14 @@ class Scrolling_Area(Frame, object):
         self.canvas.configure(scrollregion="0 0 %s %s" % (window_width, window_height), width=canvas_width, height=canvas_height)
         self.canvas.itemconfigure("inner_frame", width=window_width, height=window_height)
 
-class Cell(Frame):
-    """Base class for cells"""
-
-class Data_Cell(Cell):
-    def __init__(self, master, variable, anchor=W, bordercolor=None, borderwidth=1, padx=0, pady=0, background=None, foreground=None, font=None):
-        Cell.__init__(self, master, background=background, highlightbackground=bordercolor, highlightcolor=bordercolor, highlightthickness=borderwidth, bd= 0)
-
-        self._message_widget = Message(self, textvariable=variable, font=font, background=background, foreground=foreground)
-        self._message_widget.pack(expand=True, padx=padx, pady=pady, anchor=anchor)
-
-class Header_Cell(Cell):
-    def __init__(self, master, text, bordercolor=None, borderwidth=1, padx=0, pady=0, background=None, foreground=None, font=None, anchor=CENTER, separator=True):
-        Cell.__init__(self, master, background=background, highlightbackground=bordercolor, highlightcolor=bordercolor, highlightthickness=borderwidth, bd= 0)
-        self.pack_propagate(False)
-
-        self._header_label = Label(self, text=text, background=background, foreground=foreground, font=font)
-        self._header_label.pack(padx=padx, pady=pady, expand=True)
-
-        if separator and bordercolor is not None:
-            separator = Frame(self, height=2, background=bordercolor, bd=0, highlightthickness=0, class_="Separator")
-            separator.pack(fill=X, anchor=anchor)
-
-        self.update()
-        height = self._header_label.winfo_reqheight() + 2*padx
-        width = self._header_label.winfo_reqwidth() + 2*pady
-
-        self.configure(height=height, width=width)
-        
-class Table(Frame):
-    def __init__(self, master, columns, column_weights=None, column_minwidths=None, height=500, minwidth=20, minheight=20, padx=5, pady=5, cell_font=None, cell_foreground="black", cell_background="white", cell_anchor=W, header_font=None, header_background="white", header_foreground="black", header_anchor=CENTER, bordercolor = "#999999", innerborder=True, outerborder=True, stripped_rows=("#EEEEEE", "white"), on_change_data=None, mousewheel_speed = 2, scroll_horizontally=False, scroll_vertically=True):
-        outerborder_width = 1 if outerborder else 0
-
-        Frame.__init__(self,master, bd= 0)
-
-        self._cell_background = cell_background
-        self._cell_foreground = cell_foreground
-        self._cell_font = cell_font
-        self._cell_anchor = cell_anchor
-        
-        self._stripped_rows = stripped_rows
-
-        self._padx = padx
-        self._pady = pady
-        
-        self._bordercolor = bordercolor
-        self._innerborder_width = 1 if innerborder else 0
-
-        self._data_vars = []
-
-        self._columns = columns
-        
-        self._number_of_rows = 0
-        self._number_of_columns = len(columns)
-
-        self.grid_columnconfigure(0, weight=1)
-        self.grid_rowconfigure(1, weight=1)
-        
-        self._head = Frame(self, highlightbackground=bordercolor, highlightcolor=bordercolor, highlightthickness=outerborder_width, bd= 0)
-        self._head.grid(row=0, column=0, sticky=E+W)
-
-        header_separator = False if outerborder else True
-
-        for j in range(len(columns)):
-            column_name = columns[j]
-
-            header_cell = Header_Cell(self._head, text=column_name, borderwidth=self._innerborder_width, font=header_font, background=header_background, foreground=header_foreground, padx=padx, pady=pady, bordercolor=bordercolor, anchor=header_anchor, separator=header_separator)
-            header_cell.grid(row=0, column=j, sticky=N+E+W+S)
-
-        add_scrollbars = scroll_horizontally or scroll_vertically
-        if add_scrollbars:
-            if scroll_horizontally:
-                xscrollbar = Scrollbar(self, orient=HORIZONTAL)
-                xscrollbar.grid(row=2, column=0, sticky=E+W)
-            else:
-                xscrollbar = None
-
-            if scroll_vertically:
-                yscrollbar = Scrollbar(self, orient=VERTICAL)
-                yscrollbar.grid(row=1, column=1, sticky=N+S)
-            else:
-                yscrollbar = None
-
-            scrolling_area = Scrolling_Area(self, width=self._head.winfo_reqwidth(), height=height, scroll_horizontally=scroll_horizontally, xscrollbar=xscrollbar, scroll_vertically=scroll_vertically, yscrollbar=yscrollbar)
-            scrolling_area.grid(row=1, column=0, sticky=E+W)
-
-            self._body = Frame(scrolling_area.innerframe, highlightbackground=bordercolor, highlightcolor=bordercolor, highlightthickness=outerborder_width, bd= 0)
-            self._body.pack()
-            
-            def on_change_data():
-                scrolling_area.update_viewport()
-
-        else:
-            self._body = Frame(self, height=height, highlightbackground=bordercolor, highlightcolor=bordercolor, highlightthickness=outerborder_width, bd= 0)
-            self._body.grid(row=1, column=0, sticky=N+E+W+S)
-
-        if column_weights is None:
-            for j in range(len(columns)):
-                self._body.grid_columnconfigure(j, weight=1)
-        else:
-            for j, weight in enumerate(column_weights):
-                self._body.grid_columnconfigure(j, weight=weight)
-
-        if column_minwidths is not None:
-            for j, minwidth in enumerate(column_minwidths):
-                if minwidth is None:
-                    header_cell = self._head.grid_slaves(row=0, column=j)[0]
-                    minwidth = header_cell.winfo_reqwidth()
-
-                self._body.grid_columnconfigure(j, minsize=minwidth)
-        else:
-            for j in range(len(columns)):
-                header_cell = self._head.grid_slaves(row=0, column=j)[0]
-                minwidth = header_cell.winfo_reqwidth()
-
-                self._body.grid_columnconfigure(j, minsize=minwidth)
-
-        self._on_change_data = on_change_data
-
-    def _append_n_rows(self, n):
-        number_of_rows = self._number_of_rows
-        number_of_columns = self._number_of_columns
-
-        global item_list
-
-        # def coolfunc(idx):
-        #     print(item_list)
-        #     print("this is idx", idx)
-        #     del item_list[idx]
-
-        for i in range(number_of_rows, number_of_rows+n):
-            list_of_vars = []
-            for j in range(number_of_columns):
-                var = StringVar()
-                list_of_vars.append(var)
-
-                if self._stripped_rows:
-                    cell = Data_Cell(self._body, borderwidth=self._innerborder_width, variable=var, bordercolor=self._bordercolor, padx=self._padx, pady=self._pady, background=self._stripped_rows[i%2], foreground=self._cell_foreground, font=self._cell_font, anchor=self._cell_anchor)
-                else:
-                    cell = Data_Cell(self._body, borderwidth=self._innerborder_width, variable=var, bordercolor=self._bordercolor, padx=self._padx, pady=self._pady, background=self._cell_background, foreground=self._cell_foreground, font=self._cell_font, anchor=self._cell_anchor)
-
-                cell.grid(row=i, column=j, sticky=N+E+W+S)
-            # print("This is the value of i : ", i)
-            # del_box = ctk.CTkButton(self._body, text="Del", command= lambda idx=i: coolfunc(idx))
-            # del_box.grid(row=i, column=number_of_columns, sticky=N+E+W+S)
-            self._data_vars.append(list_of_vars)
-            
-        if number_of_rows == 0:
-            for j in range(self.number_of_columns):
-                header_cell = self._head.grid_slaves(row=0, column=j)[0]
-                data_cell = self._body.grid_slaves(row=0, column=j)[0]
-                data_cell.bind("<Configure>", lambda event, header_cell=header_cell: header_cell.configure(width=event.width), add="+")
-
-        self._number_of_rows += n
-
-    def _pop_n_rows(self, n):
-        number_of_rows = self._number_of_rows
-        number_of_columns = self._number_of_columns
-        
-        for i in range(number_of_rows-n, number_of_rows):
-            for j in range(number_of_columns):
-                self._body.grid_slaves(row=i, column=j)[0].destroy()
-            
-            self._data_vars.pop()
-    
-        self._number_of_rows -= n
-
-    def set_data(self, data):
-        n = len(data)
-        m = len(data[0])
-
-        number_of_rows = self._number_of_rows
-
-        if number_of_rows > n:
-            self._pop_n_rows(number_of_rows-n)
-        elif number_of_rows < n:
-            self._append_n_rows(n-number_of_rows)
-
-        for i in range(n):
-            for j in range(m):
-                self._data_vars[i][j].set(data[i][j])
-
-        if self._on_change_data is not None: self._on_change_data()
-
-    def get_data(self):
-        number_of_rows = self._number_of_rows
-        number_of_columns = self.number_of_columns
-        
-        data = []
-        for i in range(number_of_rows):
-            row = []
-            row_of_vars = self._data_vars[i]
-            for j in range(number_of_columns):
-                cell_data = row_of_vars[j].get()
-                row.append(cell_data)
-            
-            data.append(row)
-        return data
-
-    @property
-    def number_of_rows(self):
-        return self._number_of_rows
-
-    @property
-    def number_of_columns(self):
-        return self._number_of_columns
-
-    def row(self, index, data=None):
-        if data is None:
-            row = []
-            row_of_vars = self._data_vars[index]
-
-            for j in range(self.number_of_columns):
-                row.append(row_of_vars[j].get())
-                
-            return row
-        else:
-            number_of_columns = self.number_of_columns
-            
-            if len(data) != number_of_columns:
-                raise ValueError("data has no %d elements: %s"%(number_of_columns, data))
-
-            row_of_vars = self._data_vars[index]
-            for j in range(number_of_columns):
-                row_of_vars[index][j].set(data[j])
-                
-            if self._on_change_data is not None: self._on_change_data()
-
-    def column(self, index, data=None):
-        number_of_rows = self._number_of_rows
-
-        if data is None:
-            column= []
-
-            for i in range(number_of_rows):
-                column.append(self._data_vars[i][index].get())
-                
-            return column
-        else:      
-            number_of_columns = self.number_of_columns
-
-            if len(data) != number_of_rows:
-                raise ValueError("data has no %d elements: %s"%(number_of_rows, data))
-
-            for i in range(number_of_columns):
-                self._data_vars[i][index].set(data[i])
-
-            if self._on_change_data is not None: self._on_change_data()
-
-    def clear(self):
-        number_of_rows = self._number_of_rows
-        number_of_columns = self._number_of_columns
-
-        for i in range(number_of_rows):
-            for j in range(number_of_columns):
-                self._data_vars[i][j].set("")
-
-        if self._on_change_data is not None: self._on_change_data()
-
-    def delete_row(self, index):
-        i = index
-
-        while i < self._number_of_rows:
-            row_of_vars_1 = self._data_vars[i]
-            row_of_vars_2 = self._data_vars[i+1]
-            
-            j = 0
-            while j <self.number_of_columns:
-                row_of_vars_1[j].set(row_of_vars_2[j])
-
-            i += 1
-
-        self._pop_n_rows(1)
-
-        if self._on_change_data is not None: self._on_change_data()
-
-    def insert_row(self, data, index=END):
-        self._append_n_rows(1)
-
-        if index == END:
-            index = self._number_of_rows - 1
-        
-        i = self._number_of_rows-1
-        while i > index:
-            row_of_vars_1 = self._data_vars[i-1]
-            row_of_vars_2 = self._data_vars[i]
-
-            j = 0
-            while j < self.number_of_columns:
-                row_of_vars_2[j].set(row_of_vars_1[j])
-                j += 1
-            i -= 1
-
-        list_of_cell_vars = self._data_vars[index]
-        for cell_var, cell_data in zip(list_of_cell_vars, data):
-            cell_var.set(cell_data)
-
-        if self._on_change_data is not None: self._on_change_data()
-
-    def cell(self, row, column, data=None):
-        """Get the value of a table cell"""
-        if data is None:
-            return self._data_vars[row][column].get()
-        else:
-            self._data_vars[row][column].set(data)
-            if self._on_change_data is not None: self._on_change_data()
-
-    def __getitem__(self, index):
-        if isinstance(index, tuple):
-            row, column = index
-            return self.cell(row, column)
-        else:
-            raise Exception("Row and column indices are required")
-        
-    def __setitem__(self, index, value):
-        if isinstance(index, tuple):
-            row, column = index
-            self.cell(row, column, value)
-        else:
-            raise Exception("Row and column indices are required")
-
-    def on_change_data(self, callback):
-        self._on_change_data = callback
-
-class DeletableTable(Table):
-    def __init__(self, master, columns, **kwargs):
-        super().__init__(master, columns, **kwargs)
-        self._add_delete_buttons()
-
-    def _add_delete_buttons(self):
-        for i in range(self.number_of_rows):
-            delete_button = tk.Button(self._body, text="Delete", command=lambda i=i: self._delete_row(i))
-            delete_button.grid(row=i, column=self.number_of_columns, padx=5, pady=2)
-            self._body.grid_columnconfigure(self.number_of_columns, minsize=60)  # Adjust column width
-
-    def _delete_row(self, index):
-        result = tk.messagebox.askquestion("Delete Row", "Are you sure you want to delete this row?", icon='warning')
-        if result == 'yes':
-            self.delete_row(index)
-            self._refresh_delete_buttons()
-
-    def _refresh_delete_buttons(self):
-        for widget in self._body.winfo_children():
-            widget.grid_forget()
-        self._add_delete_buttons()
-        self.set_data(self.get_data())  # Refresh table data
-
 # Python 3 support
 basestring = str
 
-class Item(Frame):
+class Item(ctk.CTkFrame):
     def __init__(self, master, value, width, height, selection_handler=None, drag_handler = None, drop_handler=None, **kwargs):
 
         kwargs.setdefault("class_", "Item")
-        Frame.__init__(self, master, **kwargs)
+        ctk.CTkFrame.__init__(self, master, width = width, height = height, bg_color="#5F6368", fg_color="#5F6368")
         
         self._x = None
         self._y = None
@@ -597,7 +251,7 @@ class Item(Frame):
         self._x = x
         self._y = y
 
-        self.place(in_=container, x=x, y=y, width=self._width, height=self._height)
+        self.place(in_=container, x=x, y=y)
 
         self.bind_class(self._tag, "<ButtonPress-1>", self._on_selection)
         self.bind_class(self._tag, "<B1-Motion>", self._on_drag)
@@ -614,17 +268,13 @@ class Item(Frame):
 
         bin_widgets = [widget for widget in list_of_widgets if isinstance(widget, tk.Label) and hasattr(widget, 'tag') and widget.tag == "bin"]
 
-    # def delete_elem(self, event, idx):
-    #     print("This is my idx", idx)
-    #     print(self.__dict__)
-    #     print("I delet")
-
     def _add_bindtag(self, widget):
         bindtags = widget.bindtags()
         if self._tag not in bindtags:
             widget.bindtags((self._tag,) + bindtags)
 
-        
+    def modify_value(self, value):
+        self._value = value  
 
     def _on_selection(self, event):
         self.tkraise()
@@ -667,12 +317,12 @@ class Item(Frame):
 
         self.place_configure(x =self._x, y =self._y)
 
-class DDList(Frame):
+class DDList(ctk.CTkFrame):
     def __init__(self, master, item_width, item_height, item_relief=None, item_background=None, item_borderwidth=None, offset_x=0, offset_y=0, gap=0, **kwargs):
         kwargs["width"] = item_width+offset_x*2
         kwargs["height"] = offset_y*2
 
-        Frame.__init__(self, master, **kwargs)
+        ctk.CTkFrame.__init__(self, master)
 
         self._item_borderwidth = item_borderwidth
         self._item_relief = item_relief
@@ -699,24 +349,14 @@ class DDList(Frame):
         self._new_y_coord_of_selected_item = None
 
     def create_item(self, value=None, **kwargs):
-        
-        if self._item_relief is not None:
-            kwargs.setdefault("relief", self._item_relief)
-        
-        if self._item_borderwidth is not None:
-            kwargs.setdefault("borderwidth", self._item_borderwidth)
-            
-        if self._item_background is not None:
-            kwargs.setdefault("background", self._item_background)
-
-        item = Item(self.master, value, self._item_width, self._item_height, self._on_item_selected, self._on_item_dragged, self._on_item_dropped, **kwargs)   
+        item = Item(self.master, value, self._item_width, self._item_height, self._on_item_selected, self._on_item_dragged, self._on_item_dropped)   
         return item
 
     def configure_items(self, **kwargs):
         for item in self._list_of_items:
             item.configure(**kwargs)
 
-    def add_item(self, item, index=None):
+    def add_item(self, item, index=None, seq_val = None):
         if index is None:
             index = len(self._list_of_items)
         else:
@@ -743,6 +383,12 @@ class DDList(Frame):
             self._bottom += self._item_height + self._gap
             
         self.configure(height=self._bottom + self._offset_y)
+
+        if seq_val is None:
+            global part_name
+            new_order = [widget.value for widget in self._list_of_items]
+            print("This is the new order : ", new_order)
+            requests.post("http://127.0.0.1:5000/add_seq_entry", json={"part_name": part_name, "sequence_index": index, "parent_order" : new_order})
 
         return item
 
@@ -837,7 +483,6 @@ class DDList(Frame):
             return item
 
     def _on_item_dropped(self):
-        
         item = self._list_of_items.pop(self._index_of_selected_item)
         self._list_of_items.insert(self._index_of_empty_container, item)
         
@@ -853,146 +498,274 @@ class DDList(Frame):
         self._index_of_empty_container = None
         self._index_of_selected_item = None
 
+        new_order = [widget.value for widget in self._list_of_items]
+        print("This is the new order : ", new_order)
+        requests.post("http://127.0.0.1:5000/update_seq_order", json={"part_name": part_name, "sequence_order": new_order})
+
 class DDListWithLabels(DDList):
     def __init__(self, master, item_width, item_height, **kwargs):
         super().__init__(master, item_width, item_height, **kwargs)
+        self.values = []
 
     def create_item(self, value=None, **kwargs):
-        item = super().create_item(value, **kwargs)
-        self.add_labels_and_dropdown(item)
-        # delete_icon = tk.PhotoImage(file="./bin.png")  
-        # delete_button = tk.Button(item, image=delete_icon, command=lambda row=item: self.delete_row(row))
-        # delete_button.image = delete_icon
-        # delete_button.pack(side="right")
+        item = super().create_item(value)
+        self.add_labels_and_dropdown(item, **kwargs)
+
         return item
+
+    def _get_mex(self, order):
+        # sort order
+        sorted_list = order.copy()
+        sorted_list.sort()
+        for i in range(len(sorted_list)):
+            if i != sorted_list[i]:
+                return i
+        
+        return len(sorted_list)
 
     def delete_row(self, row):
         row_index = self._position[row]
         self.delete_item(row_index)
 
-    def add_labels_and_dropdown(self, item):
-        combo_items = tk.Label(item, text="Items", font=('Calibri 10'))
-        combo_items.pack(side="left")
-        combo = tk.ttk.Combobox(item, state="readonly", values=["Python", "C++", "The rest..."])
-        combo.pack(side="left", padx=5, expand = True)
+        # self.view_updated_vals(self)
+        
+        # for widget in self._list_of_items:
+        #     widget.modify_value(69)
 
-        # thresh_label = tk.Label(item, text="Threshold", font=('Calibri 10'))
-        # thresh_label.pack(side="left")
-        # thresh = tk.Entry(item, width=10)
-        # thresh.pack(side="left", padx=5, expand = True)
+        new_order = [widget.value for widget in self._list_of_items]
+        print("this is new previous order : ", new_order)
+        
+        mex_value = self._get_mex(new_order)
+        for widget in self._list_of_items:
+            if widget.value > mex_value:
+                widget.modify_value(widget.value - 1)
 
-        qty_label = tk.Label(item, text="Quantity", font=('Calibri 10'))
+        new_order = [widget.value for widget in self._list_of_items]
+        print("this is updated order : ", new_order)
+
+        requests.post("http://127.0.0.1:5000/delete_seq_entry", json={"part_name": part_name, "sequence_index": row_index, "parent_order": new_order})
+        # requests.post("http://127.0.0.1:5000/update_seq_order", json={"part_name": part_name, "sequence_order": new_order})
+
+    def update_seq_entry(self, event, idx):
+        r = requests.post("http://127.0.0.1:5000/update_seq_item", json={"part_name": part_name, "selected_item": event, "sequence_index": idx})
+        
+
+    def add_labels_and_dropdown(self, item, **kwargs):
+        combo_items = ctk.CTkLabel(item, text="Items", font=("Roboto", 14))
+        combo_items.pack(side="left", padx=10)
+
+        global item_list
+        self.values = [val[0] for val in item_list]
+        
+        # print("This is kwargs : ",kwargs['seq_val'])
+
+        combo = ctk.CTkComboBox(item, state="readonly", values=self.values, command=lambda event:self.update_seq_entry(event=event,idx=self._position[item]))
+        try:
+            combo.set(kwargs['seq_val']['item_id'])
+        except:
+            pass
+        combo.pack(side="left", padx=10, expand = True)
+
+        qty_label = ctk.CTkLabel(item, text="Quantity", font=("Roboto", 14))
+        # print("This is supposed to be item quantity : ", len(kwargs['seq_val']['item_position']))
         qty_label.pack(side="left")
-        qty = tk.Entry(item, width=10)
-        qty.pack(side="left", padx=5, expand = True)
+        qty = ctk.CTkEntry(item, width=50, state=ctk.DISABLED)
+
+        qty_val = tk.StringVar()
+        try:
+            qty_val.set(len(kwargs['seq_val']['item_position']))
+        except:
+            qty_val.set("0")
+        finally:
+            qty.configure(textvariable = qty_val)
+
+        qty.pack(side="left", padx=10, expand = True)
 
         cool_button = ctk.CTkButton(item, text="Set Regions", command=lambda: tk.messagebox.showerror("ALERT!", "This is WIP!"))
-        cool_button.pack(side="left", padx=5, expand = True)
+        cool_button.pack(side="left", padx=10, expand = True)
         
+        # hamburger_img = ctk.CTkImage(Image.open("./hamburger.png"), size=(15, 15))
+        # hamburger_btn = ctk.CTkButton(master=item, text = "", image = hamburger_img, width=30)
+        # hamburger_btn.pack(side="left", padx=5, expand=True)
+
+        # ham_label = ctk.CTkLabel(item)
+        # ham_label.pack(side="left", padx=5, expand = True)
+        # ham_label.tag = "hamburger"
+
+        # ham_label.configure(image=hamburger_img)
+
         image_label = tk.Label(item)
-        image_label.pack(side="left", padx=5, expand = True)
+        image_label.pack(side="left", padx=10, expand = True)
         image_label.tag = "hamburger"
 
-        image = Image.open("./hamburger.png").resize((15, 15))
+        image = Image.open("./hamburger.png").resize((17, 17))
         photo = ImageTk.PhotoImage(image=image)
         image_label.config(image=photo)
         image_label.image = photo
 
-        # del_label = tk.Label(item)
-        # del_label.pack(side="left", padx=5)
-        # del_label.tag = "bin"
-
-        # del_image = Image.open("./bin.png").resize((15, 15))
-        # photo = ImageTk.PhotoImage(image=del_image)
-        # del_label.config(image=photo)
-        # del_label.image = photo
-
-        delete_img = Image.open("./bin.png").resize((15, 15))
+        delete_img = Image.open("./bin.png").resize((17, 17))
         delete_icon = ImageTk.PhotoImage(image=delete_img)
         delete_button = tk.Button(item, image = delete_icon, command = lambda row = item: self.delete_row(row))
         delete_button.image = delete_icon
-        delete_button.pack(side="left")
+        delete_button.pack(side="left", padx=10, pady=12)
 
-        # label1 = tk.Label(item, text=self._label_text_1)
-        # label1.pack(anchor=tk.W, padx=(4, 0), pady=(4, 0))
+    def update_dropdowns(self, newDropdown):
+        for item in self._list_of_items:
+            for widget in item.winfo_children():
+                if isinstance(widget, ctk.CTkComboBox):
+                    # Access the selected value of the dropdown
+                    widget.configure(values = newDropdown)
 
-        # label2 = tk.Label(item, text=self._label_text_2)
-        # label2.pack(anchor=tk.W, padx=(4, 0))
-
-        # combo = tk.ttk.Combobox(item, state="readonly", values=self._dropdown_values)
-        # combo.pack(anchor=tk.W, padx=(4, 0), pady=(0, 4))
+    def get_new_order(self):
+        new_order = []
+        for item in self._list_of_items:
+            for widget in item.winfo_children():
+                if isinstance(widget, ctk.CTkComboBox):
+                    # Access the selected value of the dropdown
+                    dropdown_value = widget.get()
+            
+            new_order.append(dropdown_value)
+            # print(f"This is the dropdown value : {dropdown_value}, and this is the entry value : {entry_value}")
+        return new_order
 
 class ScrollableLabelButtonFrame(ctk.CTkScrollableFrame):
     def __init__(self, master, root, command=None, **kwargs):
         
         super().__init__(master, **kwargs)
         self.grid_columnconfigure(0, weight=1)
-        label1 = ctk.CTkLabel(self, text="Item", padx=5, anchor="center")
+        label1 = ctk.CTkLabel(self, text="Item", padx=5, anchor="center", fg_color="#5F6368", bg_color="#5F6368")
         label2 = ctk.CTkLabel(self, text="Threshold", padx=5, anchor="w")
-        label1.grid(row=1, column=0, pady=(0, 10), sticky="nsew")
-        label2.grid(row=1, column=1, pady=(0, 10), sticky="w")
+        label1.grid(row=1, column=0, pady=10, padx= (10,10), sticky="nsew")
+        label2.grid(row=1, column=1, pady=10, padx=(10,10), sticky="w")
 
         self.root = root
         self.command = command
+
 
         self.label1_list = []  # List to store the first label in each row
         self.label2_list = []  # List to store the second label in each row
         self.button1_list = []  # List to store the first button in each row
         self.button2_list = []  # List to store the second button in each row
         
-        # self.label1_list.append(label1)
-        # self.label2_list.append(label2)
+        global item_list
+        for item in item_list:
+            self.add_item(item[0], item[1])
 
-        add_itm = ctk.CTkButton(self,text="Add New Item", width=100, height=24,command = self.open_popup)
+        add_itm = ctk.CTkButton(self,text="Add New Item", width=100, height=24,command = self.open_add_popup)
         add_itm.grid(row=0, column=2, padx=5, pady=10)
 
-        del_itm = ctk.CTkButton(self,text="Delete Item", width=100, height=24,command = self.remove_item)
-        del_itm.grid(row=0, column=3, padx=5, pady=10)
+    def open_add_popup(self):
+        global item_list, new_seq_btn
 
-    def open_popup(self):
-        global item_list
-
-        popup = tk.Toplevel(self.root)
+        popup = ctk.CTkToplevel(self.root)
+        popup.bind("<Button-1>", lambda event: event.widget.focus_set())
         popup.title("Enter Values")
         popup.grab_set()
 
-        label_item = tk.ttk.Label(popup, text="Item:")
-        label_thresh = tk.ttk.Label(popup, text="Threshold:")
+        label_item = ctk.CTkLabel(popup, text="Item:")
+        label_thresh = ctk.CTkLabel(popup, text="Threshold:")
         label_item.grid(row=0, column=0, padx=10, pady=5, sticky="w")
         label_thresh.grid(row=1, column=0, padx=10, pady=5, sticky="w")
 
-        entry_item = tk.ttk.Entry(popup)
-        entry_thresh = tk.ttk.Entry(popup)
+        entry_item = ctk.CTkEntry(popup)
+        entry_thresh = ctk.CTkEntry(popup)
         entry_item.grid(row=0, column=1, padx=10, pady=5)
         entry_thresh.grid(row=1, column=1, padx=10, pady=5)
 
-        def add_new_item():
-            global item_list 
+        def add_new_item(*args):
+            global item_list, new_seq_btn, sortable_list
             value_item = entry_item.get()
             value_thresh = entry_thresh.get()
 
-            item_list.append((value_item, value_thresh))
+            item_list.append([value_item, value_thresh])
             popup.destroy()
 
-            # table.insert_row([value_item, value_thresh])
             self.add_item(value_item, value_thresh)
 
-        popup.bind("<Return>", lambda event: add_new_item())
+            myItems = [val[0] for val in item_list]
+            sortable_list.update_dropdowns(myItems)
+            new_seq_btn.configure(state=ctk.NORMAL)
+            
+            r = requests.post('http://127.0.0.1:5000/add_items', json={"itm_val": (value_item, value_thresh)})
+            
+
+        popup.bind("<Return>", add_new_item)
         ok_button = ctk.CTkButton(popup, text="OK", command=add_new_item)
         ok_button.grid(row=2, column=0, columnspan=2, pady=10)
 
+    def open_edit_popup(self, old_item, old_thresh):
+        old_item_label = old_item.cget("text")
+        old_thresh_label = old_thresh.cget("text")
+
+        global item_list, new_seq_btn
+
+        popup = ctk.CTkToplevel(self.root)
+        popup.bind("<Button-1>", lambda event: event.widget.focus_set())
+        popup.title("Enter New Values")
+        popup.grab_set()
+
+        label_item = ctk.CTkLabel(popup, text="Item:")
+        label_thresh = ctk.CTkLabel(popup, text="Threshold:")
+        label_item.grid(row=0, column=0, padx=10, pady=5, sticky="w")
+        label_thresh.grid(row=1, column=0, padx=10, pady=5, sticky="w")
+
+        entry_item = ctk.CTkEntry(popup, placeholder_text=old_item_label)
+        entry_thresh = ctk.CTkEntry(popup, placeholder_text=old_thresh_label)
+        entry_item.grid(row=0, column=1, padx=10, pady=5)
+        entry_thresh.grid(row=1, column=1, padx=10, pady=5)
+
+        def update_item(*args):
+            global item_list, new_seq_btn
+            value_item = entry_item.get()
+            value_thresh = entry_thresh.get()
+
+            r = requests.post('http://127.0.0.1:5000/edit_item', json={"old_itm_val": (old_item_label, old_thresh_label), "new_itm_val": (value_item, value_thresh)}).json()
+
+            if r['status_code'] == 200:
+                print("This is item list : ", item_list)
+                print("I want to remove : ", [old_item_label, old_thresh_label])
+                item_list.remove([old_item_label, old_thresh_label])
+                old_item.configure(text = r['result'][0])
+                old_thresh.configure(text = r['result'][1])
+                item_list.append([r['result'][0], r['result'][1]])
+                
+
+                print(f"The new item is {r['result'][0]} and the new threshold is {r['result'][1]}")
+                myItems = [val[0] for val in item_list]
+
+                # print("These are my updated items ; )", myItems)
+                global sortable_list
+                sortable_list.update_dropdowns(myItems)
+                
+                # Update already selected instances
+                for item in sortable_list._list_of_items:
+                    for widget in item.winfo_children():
+                        if isinstance(widget, ctk.CTkComboBox):
+                            if widget.get() == old_item_label:
+                                widget.set(value_item)
+                                print("This is the position", sortable_list._position[item])
+                                sortable_list.update_seq_entry(value_item, sortable_list._position[item])
+                            
+
+
+            popup.destroy()          
+
+        popup.bind("<Return>", update_item)
+        ok_button = ctk.CTkButton(popup, text="OK", command=update_item)
+        ok_button.grid(row=2, column=0, columnspan=2, pady=10)
+
+
     def add_item(self, item1, item2):
-        print(item1, item2)
-        label1 = ctk.CTkLabel(self, text=item1, padx=5, anchor="w")
-        label2 = ctk.CTkLabel(self, text=item2, padx=5, anchor="w")
+        label1 = ctk.CTkLabel(self, text=item1, padx=10, anchor="w")
+        label2 = ctk.CTkLabel(self, text=item2, padx=10, anchor="w")
 
         row = len(self.label1_list) + 2  # Start from row 1 for data rows
         
         label1.grid(row=row, column=0, pady=(0, 10))
         label2.grid(row=row, column=1, pady=(0, 10))
     
-        button1 = ctk.CTkButton(self, text="Edit", width=100, height=24)
-        button2 = ctk.CTkButton(self, text="Delete", width=100, height=24, command=lambda item=item1: self.remove_item(item1))
+        button1 = ctk.CTkButton(self, text="Edit", width=100, height=24, command = lambda: self.edit_item(label1,label2))
+        button2 = ctk.CTkButton(self, text="Delete", width=100, height=24, command=lambda: self.remove_item(item1))
         if self.command is not None:
             button1.configure(command=lambda: self.command(item1, "Edit"))
             button2.configure(command=lambda: self.command(item1, "Delete"))
@@ -1004,10 +777,18 @@ class ScrollableLabelButtonFrame(ctk.CTkScrollableFrame):
         self.label1_list.append(label1)
         self.label2_list.append(label2)
 
+    def edit_item(self, label1, label2):
+        updated_val = self.open_edit_popup(label1, label2)
+
+        # for label1, label2 in zip(self.label1_list, self.label2_list):
+        #     if item1 == label1.cget("text"):
+        #         print("This is the new and updated value : ", updated_val)
+        #         return
+
+
     def remove_item(self, item1):
         for label1, label2, button1, button2 in zip(self.label1_list, self.label2_list, self.button1_list, self.button2_list):
             if item1 == label1.cget("text"):
-                print(item1, " is removed : ) ")
                 label1.destroy()
                 label2.destroy()
                 button1.destroy()
@@ -1016,6 +797,36 @@ class ScrollableLabelButtonFrame(ctk.CTkScrollableFrame):
                 self.label2_list.remove(label2)
                 self.button1_list.remove(button1)
                 self.button2_list.remove(button2)
+                
+                global part_name
+                
+                #FIXME: Give a warning to the user that all sequence values with this item will be deleted
+                global sortable_list
+
+                old_order = [widget.value for widget in sortable_list._list_of_items]
+                r = requests.post('http://127.0.0.1:5000/delete_item', json={"item": item1, "part_name": part_name, "old_order": old_order}).json()
+                
+                if r['status_code'] == 200:
+                    del_idx = r['del_idx']
+                    print("this is the del idx i got : ", del_idx)
+
+                    offset = 0
+                    for idx_to_delete in del_idx:
+                        # print("I will delete this index in order : ", idx_to_delete-1-offset)
+                        sortable_list.delete_row(sortable_list._list_of_items[idx_to_delete-1-offset])
+                        offset+=1
+
+                    # for item in sortable_list._list_of_items:
+                        
+                    #     if item.value+offset in del_idx:
+                    #     #     print("I have removed the item present at this index : ", item.value, "  and this is the offset : ", offset)
+                    #     #     sortable_list.delete_row(item)
+                    #         offset+=1
+                    #     idx+=1
+
+                if not len(self.label1_list):
+                    global new_seq_btn
+                    new_seq_btn.configure(state=ctk.DISABLED)
                 return
 
 CANVAS_WIDTH = 640
@@ -1042,8 +853,6 @@ def draw_saved_boxes(coordinates_list,canvas):
 def check_overlap(coordinates_list, last_coords, mybox):
         # Logic to check if the box is overlapping with any other drawn box
         for coord in coordinates_list:
-            # print("This is box cord : ", coord)
-            # print("This is the last coord : ", last_coords)
             if(coord == last_coords):
                 continue
 
@@ -1053,139 +862,76 @@ def check_overlap(coordinates_list, last_coords, mybox):
             
         return False
 
-def add_item(sortable_list):
+def add_item(sortable_list, seq_val = None):
     index = len(sortable_list._list_of_items)
-    item = sortable_list.create_item(value = index)
-    sortable_list.add_item(item)
+    item = sortable_list.create_item(value = index, seq_val = seq_val)
+    sortable_list.add_item(item, seq_val = seq_val)
+
+# DEBUG 
+def view_updated_vals(sortable_list):
+    for item in sortable_list._list_of_items:
+        for widget in item.winfo_children():
+            if isinstance(widget, tk.ttk.Combobox):
+                # Access the selected value of the dropdown
+                dropdown_value = widget.get()
+            elif isinstance(widget, tk.Entry):
+                # Access the text entered in the entry widget
+                entry_value = widget.get()
+
+        print(f"This is the dropdown value : {dropdown_value}, and this is the entry value : {entry_value}")
 
 def main():
     root = ctk.CTk()
     ctk.set_appearance_mode("Dark")
     root.title("Real-time Video Feed")
 
+    global part_name
+    # HARD CODED PART SELECTION
+    part_name = "PartA"
+    r = requests.post('http://127.0.0.1:5000/get_part_id', json={"part_name": part_name})
+
     annot_frame = tk.Frame()
     regions_frame = ctk.CTkScrollableFrame(master=root, width = 700)
     items_frame = ctk.CTkFrame(master = root)
 
-    global item_list
-    item_list = []
+    global item_list, new_seq_btn
+    r = requests.get('http://127.0.0.1:5000/get_items').json()
+    if r['status_code'] != 200:
+        item_list = []
+    else:
+        item_list = r['result']
 
     # Create a button to add a new item
-    # cool = ItemTable(master = items_frame, root = root, width=500, corner_radius=10)
     btnframe = ScrollableLabelButtonFrame(master=items_frame, root = root, width=500, corner_radius=0, height=540)
     btnframe.grid(row=0, column=4, padx=0, pady=0, sticky="nsew")
 
-
-    for i in range(len(item_list)):  # add items with images
-        print("Im cool")
-        btnframe.add_item(f"image and item {i}", "BObo")
-
-
-    # add_button = ctk.CTkButton(items_frame, text="Add New Item")
-    # add_button.pack(pady=(20,10), padx=10)
-    # table = DeletableTable(master = items_frame, columns = ["Item", "Threshold", "Dumbo"])
-    # data = [[1, 2, 3], [4, 5, 6], [7, 8, 9], [10, 11, 12], [13, 14, 15], [15, 16, 18], [19, 20, 21]]
-    # table.set_data(data)
-
-    # add_button = ctk.CTkButton(items_frame, text="Add New Item", command = lambda table=table: open_popup(table))
-    # add_button.pack(pady=(20,10), padx=10)
-
-    # lol = ctk.CTkButton(items_frame, text="Del", command = lambda: table.delete_row(1))
-    # lol.pack(pady=(20,10), padx=10)
-
-    # table.pack(padx=10, pady = 10, fill=tk.BOTH, anchor=tk.CENTER)
-
-    print(item_list)
-    # table = ctk.CTkTable(master=items_frame, row =2, column=2, values=dum_vals)
-    # table.pack(expand=True, fill=tk.BOTH, padx=20, pady=20)
-
-    # sortable_list = DDList(regions_frame, 200, 100, offset_x=10, offset_y=10, gap =10, item_borderwidth=1, item_relief="groove")
+    # Making it global so that ALL the dropdown values can be updated when a new item is added 
+    global sortable_list
     sortable_list = DDListWithLabels(regions_frame, 650, 50, offset_x=10, offset_y=10, gap=10, item_borderwidth=1, item_relief="groove")
-    # sortable_list.pack(expand=True, fill=tk.BOTH)
+
     sortable_list.grid(row=1, column=0, columnspan=2, sticky="news")
     
-    # ctk.CTkButton(regions_frame, text="Add New Region", command=lambda lst=sortable_list: add_item(sortable_list)).pack(side=tk.LEFT, padx=(3,0))
-    ctk.CTkButton(regions_frame, text="Add New Region", command=lambda lst=sortable_list: add_item(sortable_list)).grid(row=0, column=0, columnspan=2, sticky="n", padx=10, pady=(20,10))
+    r = requests.post('http://127.0.0.1:5000/get_sequence', json={"part_name": part_name}).json()
+    if r['status_code'] == 200:
+        curr_seq = r['result']
+        parent_order = r['parent_order']
+        for seq in curr_seq:
+            add_item(sortable_list, seq)
+        idx = 0
+        for widget in sortable_list._list_of_items:
+            widget.modify_value(parent_order[idx])
+            idx+=1
+
+        # new_order = [widget.value for widget in sortable_list._list_of_items]
+        
+        
+
+    new_seq_btn = ctk.CTkButton(regions_frame, text="Add New Region", state=ctk.DISABLED if len(item_list) == 0 else ctk.NORMAL, command=lambda: add_item(sortable_list))
+    new_seq_btn.grid(row=0, column=0, columnspan=2, sticky="n", padx=10, pady=(20,10))
+
+    # ctk.CTkButton(regions_frame, text="DEBUG : View vals", command=lambda: dothis(sortable_list)).grid(row=0, column=1, columnspan=2, sticky="n", padx=10, pady=(20,10))
 
     # Create a sub-frame to hold the widgets in a row
-    def create_row(regions_frame):
-        widget_row = tk.Frame(regions_frame, bg="light grey", padx=10, pady=10)
-        widget_row.pack(fill="x", padx=10, pady=5)
-
-        combo_items = tk.Label(widget_row, text="Items", font=('Calibri 10'))
-        combo_items.pack(side="left")
-        combo = tk.ttk.Combobox(widget_row, state="readonly", values=["Python", "Python", "ONLY PYTHON"])
-        combo.pack(side="left", padx=5)
-
-        thresh_label = tk.Label(widget_row, text="Threshold", font=('Calibri 10'))
-        thresh_label.pack(side="left")
-        thresh = tk.Entry(widget_row, width=10)
-        thresh.pack(side="left", padx=5)
-
-        qty_label = tk.Label(widget_row, text="Quantity", font=('Calibri 10'))
-        qty_label.pack(side="left")
-        qty = tk.Entry(widget_row, width=10)
-        qty.pack(side="left", padx=5)
-
-        cool_button = ctk.CTkButton(widget_row, text="Set Regions", command=lambda: tk.messagebox.showerror("ALERT!", "This is WIP!"))
-        cool_button.pack(side="left", padx=5)
-        
-        image_label = tk.Label(widget_row)
-        image_label.pack(side="left", padx=5)
-
-        image = Image.open("./hamburger.png").resize((15, 15))
-        photo = ImageTk.PhotoImage(image=image)
-        image_label.config(image=photo)
-        image_label.image = photo
-
-        # image_label.bind("<Button-1>", lambda event: start_drag(event, image_label))
-        # image_label.bind("<B1-Motion>", lambda event: on_drag(event, image_label))
-        # image_label.bind("<ButtonRelease-1>", lambda event: end_drag(event, image_label))
-
-        return widget_row
-        # photoimage = ImageTk.PhotoImage(image="hamburger.png")
-        # canvas.create_image(20, 20, image=photoimage)
-
-        # image = Image.open("./hamburger.png")
-        # image = image.resize((20, 20))
-        # photo = ImageTk.PhotoImage(image)
-
-        # image_label = tk.Label(widget_row, image=photo)
-        # image_label.image = photo  # Keep a reference to the PhotoImage to prevent garbage collection
-        # image_label.pack(side="left", padx=5)
-        
-    # for i in range(3):
-    #     item = sortable_list.create_item(value = i)
-    #     # label = tk.Label(item, text=f"this is the label {i}")
-    #     # label.pack(anchor=tk.W, padx=(4,0), pady=(4,0))
-    #     # get values from entry fields
-
-    #     sortable_list.add_item(item)
-    #     print("This is the length of the list : ", len(sortable_list._list_of_items))
-
-    # frame = Frame(root)
-    # frame.pack(side=tk.BOTTOM, fill=tk.X, pady=(0, 10))
-    
-    # indexVar = tk.IntVar()
-    # label = tk.Label(frame, text="Entry index of item to delete:")
-    # label.pack(side=tk.LEFT, padx=(10,6))
-    # entry_of_index = tk.Entry(frame,textvariable= indexVar, width=3)
-    
-    # def delete_item():
-    #     try:
-    #         index = indexVar.get()
-    #     except ValueError:
-    #         tk.messagebox.showerror("Error", "Not a valid integer")
-    #         return
-
-    #     entry_of_index.delete(0, tk.END)
-    #     sortable_list.delete_item(index)
-    # entry_of_index.bind('<Return>', delete_item)
-
-    # entry_of_index.pack(side=tk.LEFT)
-    
-    # ctk.CTkButton(frame, text="Delete", command=delete_item).pack(side=tk.LEFT, padx=(3,0))
-
 
     global coordinates_list, selected_box, selected_resize_handle, start_x, start_y, box_to_delete
     coordinates_list = []
@@ -1198,25 +944,11 @@ def main():
     canvas = tk.Canvas(master=annot_frame, width=CANVAS_WIDTH, height=CANVAS_HEIGHT)
     canvas.pack()
     
+    # r = requests.post('http://localhost:5000/check_bbox_inside_image', json={"current_bbox": (0,1,2,3)})
+    # if r.status_code != 200:
+    #     print("nah ")
+
     #v2 - box + drag if already exist
-
-    # def add_row(info_list):
-    #     row_frame = tk.Frame(regions_frame)
-    #     for info in info_list:
-    #         label = tk.Label(row_frame, text=info, borderwidth=1, relief="solid")
-    #         label.pack(side="left")
-    #     row_frame.pack(fill="x", padx=10, pady=5)
-
-    # data = [
-    #     ["Name", "Age", "Country"],
-    #     ["John", "25", "USA"],
-    #     ["Emily", "30", "Canada"],
-    #     ["Michael", "22", "Australia"],
-    #     ["Sophia", "28", "UK"]
-    # ]
-
-    # for row_data in data:
-    #     add_row(row_data)
 
     # ============================ CANVAS HELPER FUNCTIONS ============================ 
     def draw_rectangle(canvas, x1, y1, x2, y2, **kwargs):
@@ -1285,8 +1017,6 @@ def main():
 
     def on_lmb_release(event):
         global selected_box, last_coords, last_click, box_to_delete
-        # print("On click, this was my cords : ", last_click)
-        # print("On clicking, this is my cord : ", (event.x, event.y))
 
         print("This is the selected box : ", selected_box)
 
@@ -1323,7 +1053,6 @@ def main():
                 coordinates_list.append((min(x0,x1), min(y0,y1), max(x0,x1), max(y0,y1)))
         else:
             # This means that the user is trying to SELECT a box, and not drag it
-            print("I weant to selecta box :")
             if(abs(last_click[0] - event.x) == 0 and abs(last_click[1] - event.y) == 0):
                 if selected_box:
                     try:
@@ -1342,7 +1071,6 @@ def main():
 
             # User is DRAGGING the box     
             else:
-                print("I am dragging the box ")
                 cursor_x, cursor_y = event.x, event.y
                 
                 x0 = cursor_x - selected_box_offset_x
@@ -1382,14 +1110,6 @@ def main():
         except:
             pass
         canvas.delete("temp_box")
-
-        # Fail-safe
-
-        # coordinates_list = []
-        for box in canvas.find_withtag("user_box"):
-            print("OBHOBHOBOB BODXXXX")
-            # print(canvas.coords(box))
-            # coordinates_list.append(canvas.coords(box))
 
         print(coordinates_list)
         
