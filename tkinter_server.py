@@ -239,5 +239,58 @@ def delete_seq_item():
     )
     return {"message" : "success", "status_code" : 200}
 
+# To Update the drawn bounding box coordinates for the specific item
+@app.route('/update_coordinates/', methods=['POST'])
+def update_coordinates():
+    data = json.loads(request.data)
+
+    part_name = data['part_name']
+    new_coords = data['coord_list']
+    item_name = data['item_details'][0]
+    item_seq = data['item_details'][1]
+
+    parts_coll = mongo.getCollection("parts")
+
+    parts_coll.update_one(
+        {"part_name" : part_name, "part_configuration.item_sequence": int(item_seq)+1, "part_configuration.item_id" : str(item_name)}
+        , {"$set" : {
+                'part_configuration.$.item_position' : new_coords
+                , 'part_configuration.$.item_qty' : len(new_coords)
+            }
+        }
+    ) 
+
+    return {"message" : "success", "status_code" : 200}
+
+# To update the item quantity for every sequence entry 
+@app.route('/update_seq_qty/', methods=['POST'])
+def update_seq_qty():
+    data = json.loads(request.data)
+    
+    part_name = data['part_name']
+
+    parts_coll = mongo.getCollection("parts")
+    parts = parts_coll.find_one({"part_name" : part_name})
+
+    quants = [item["item_qty"] for item in parts["part_configuration"]]
+
+    return {"result" : quants, "status_code" : 200}
+
+# To obtain coordinate list of selected item if it already exists
+@app.route('/get_coordinates/', methods = ['POST'])
+def get_coordinates():
+    data = json.loads(request.data)
+
+    part_name = data['part_name']
+    item_name = data['item_details'][0]
+    item_seq = data['item_details'][1]
+
+    parts_coll = mongo.getCollection("parts")
+    part_config = parts_coll.find_one({"part_name" : part_name})["part_configuration"]
+
+    coord_list = [item['item_position'] for item in part_config if item["item_id"] == item_name and item['item_sequence'] == int(item_seq)+1]
+
+    return {"result" : coord_list[0], "status_code" : 200}
+
 if __name__ == '__main__':
     app.run(host="0.0.0.0",port=5000,threaded=True,debug=False)
