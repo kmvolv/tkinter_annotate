@@ -6,6 +6,8 @@ import CTkTable as ctkTable
 from PIL import Image, ImageTk
 import requests
 
+from CTkMessagebox import CTkMessagebox
+
 from tkinter import Frame, Label, Message, StringVar, Canvas
 from tkinter.ttk import Scrollbar
 from tkinter.constants import *
@@ -213,7 +215,8 @@ class Item(ctk.CTkFrame):
 
         kwargs.setdefault("class_", "Item")
         ctk.CTkFrame.__init__(self, master, width = width, height = height, bg_color="#5F6368", fg_color="#5F6368")
-        
+
+
         self._x = None
         self._y = None
         
@@ -222,6 +225,12 @@ class Item(ctk.CTkFrame):
 
         self._tag = "item%s"%id(self)
         self._value = value
+
+        self.enable_drag = kwargs['seq_val'] != None
+        try:
+            self.enable_drag &= len(kwargs['seq_val']['item_position']) != 0
+        except:
+            pass
 
         self._selection_handler = selection_handler
         self._drag_handler = drag_handler
@@ -247,7 +256,7 @@ class Item(ctk.CTkFrame):
     def value(self):
         return self._value
         
-    def init(self, container, x, y):
+    def init(self, container, x, y, **kwargs):
         self._x = x
         self._y = y
 
@@ -264,7 +273,7 @@ class Item(ctk.CTkFrame):
         hamburger_widgets = [widget for widget in list_of_widgets if isinstance(widget, tk.Label) and hasattr(widget, 'tag') and widget.tag == "hamburger"]
 
         for widget in hamburger_widgets:
-            self._add_bindtag(widget)
+            if self.enable_drag: self._add_bindtag(widget)
 
         bin_widgets = [widget for widget in list_of_widgets if isinstance(widget, tk.Label) and hasattr(widget, 'tag') and widget.tag == "bin"]
 
@@ -272,6 +281,11 @@ class Item(ctk.CTkFrame):
         bindtags = widget.bindtags()
         if self._tag not in bindtags:
             widget.bindtags((self._tag,) + bindtags)
+
+    def _remove_bindtag(self, widget):
+        bindtags = widget.bindtags()
+        if self._tag in bindtags:
+            widget.bindtags(())
 
     def modify_value(self, value):
         self._value = value  
@@ -349,7 +363,7 @@ class DDList(ctk.CTkFrame):
         self._new_y_coord_of_selected_item = None
 
     def create_item(self, value=None, **kwargs):
-        item = Item(self.master, value, self._item_width, self._item_height, self._on_item_selected, self._on_item_dragged, self._on_item_dropped)   
+        item = Item(self.master, value, self._item_width, self._item_height, self._on_item_selected, self._on_item_dragged, self._on_item_dropped, **kwargs)
         return item
 
     def configure_items(self, **kwargs):
@@ -387,7 +401,6 @@ class DDList(ctk.CTkFrame):
         if seq_val is None:
             global part_name
             new_order = [widget.value for widget in self._list_of_items]
-            print("This is the new order : ", new_order)
             requests.post("http://127.0.0.1:5000/add_seq_entry", json={"part_name": part_name, "sequence_index": index, "parent_order" : new_order})
 
         return item
@@ -446,7 +459,11 @@ class DDList(ctk.CTkFrame):
         self._index_of_empty_container = self._index_of_selected_item
 
     def _on_item_dragged(self, x, y):
-
+        global lock_last_elem
+        
+        if len(self._list_of_items) == 0:
+            return
+        
         if self._left < x < self._right and self._top < y < self._bottom:
 
             quotient, remainder = divmod(y-self._offset_y, self._item_height + self._gap)
@@ -455,7 +472,7 @@ class DDList(ctk.CTkFrame):
             
                 new_container = quotient
 
-                if new_container != self._index_of_empty_container:
+                if new_container != self._index_of_empty_container and (new_container != len(self._list_of_items)-1 if lock_last_elem else True):
                     if new_container > self._index_of_empty_container:
                         for index in range(self._index_of_empty_container+1, new_container+1, 1):
                             item = self._get_item_of_virtual_list(index)                            
@@ -509,7 +526,7 @@ class DDListWithLabels(DDList):
         self.values = []
 
     def create_item(self, value=None, **kwargs):
-        item = super().create_item(value)
+        item = super().create_item(value, **kwargs)
         self.add_labels_and_dropdown(item, **kwargs)
 
         return item
@@ -525,6 +542,11 @@ class DDListWithLabels(DDList):
         return len(sorted_list)
 
     def delete_row(self, row):
+        msg = CTkMessagebox(title="Are you sure?", message="The entries below the deleted entry will automatically be moved up by one level!", icon="warning", option_1="Continue", option_2="Cancel")
+
+        if msg.get() == "Cancel":
+            return
+        
         row_index = self._position[row]
         self.delete_item(row_index)
 
@@ -534,7 +556,6 @@ class DDListWithLabels(DDList):
         #     widget.modify_value(69)
 
         new_order = [widget.value for widget in self._list_of_items]
-        print("this is new previous order : ", new_order)
         
         mex_value = self._get_mex(new_order)
         for widget in self._list_of_items:
@@ -544,11 +565,16 @@ class DDListWithLabels(DDList):
         new_order = [widget.value for widget in self._list_of_items]
         print("this is updated order : ", new_order)
 
+        global lock_last_elem
+        lock_last_elem = False
+
         requests.post("http://127.0.0.1:5000/delete_seq_entry", json={"part_name": part_name, "sequence_index": row_index, "parent_order": new_order})
         # requests.post("http://127.0.0.1:5000/update_seq_order", json={"part_name": part_name, "sequence_order": new_order})
 
     def update_seq_entry(self, event, idx):
         r = requests.post("http://127.0.0.1:5000/update_seq_item", json={"part_name": part_name, "selected_item": event, "sequence_index": idx})
+        global set_regions
+        set_regions.configure(state = ctk.NORMAL)
         
     def _create_new_window(self, item):
         for widget in item.winfo_children():
@@ -574,10 +600,19 @@ class DDListWithLabels(DDList):
         # print("This is kwargs : ",kwargs['seq_val'])
 
         combo = ctk.CTkComboBox(item, state="readonly", values=self.values, command=lambda event:self.update_seq_entry(event=event,idx=self._position[item]))
+        is_item_selected = False
+
         try:
             combo.set(kwargs['seq_val']['item_id'])
         except:
             pass
+        else:
+            is_item_selected = True
+
+        if not is_item_selected:
+            global new_seq_btn
+            new_seq_btn.configure(state = ctk.DISABLED)
+
         combo.pack(side="left", padx=10, expand = True)
 
         qty_label = ctk.CTkLabel(item, text="Quantity", font=("Roboto", 14))
@@ -586,18 +621,37 @@ class DDListWithLabels(DDList):
         qty = ctk.CTkEntry(item, width=50, state=ctk.DISABLED)
 
         qty_val = tk.StringVar()
+
+        global lock_last_elem
         try:
             qty_val.set(len(kwargs['seq_val']['item_position']))
+            # print(kwargs["seq_val"]['item_position'])
+            # print(len(kwargs['seq_val']['item_position']))
+            # print(" ======================= ")
+            if len(kwargs['seq_val']['item_position']) == 0:
+                lock_last_elem = True
+            #     lock_last_elem = True
+            # else:
+            #     print("length is non zero, so unlocking last elem")
+            #     lock_last_elem = False
         except:
             qty_val.set("0")
+            lock_last_elem = True
+            # for widget in item.winfo_children():
+            #     if isinstance(widget, tk.Label) and hasattr(widget, 'tag') and widget.tag == "hamburger":
+            #         item._remove_bindtag(widget)
+            #         print(" i remove bindtag : 0")
+            #         break
+            
         finally:
             qty.configure(textvariable = qty_val)
 
         qty.pack(side="left", padx=10, expand = True)
 
         # cool_button = ctk.CTkButton(item, text="Set Regions", command=lambda: NewWindow(self.root))
-        cool_button = ctk.CTkButton(item, text="Set Regions", command= lambda:self._create_new_window(item))
-        cool_button.pack(side="left", padx=10, expand = True)
+        global set_regions
+        set_regions = ctk.CTkButton(item, text="Set Regions", command= lambda:self._create_new_window(item), state = ctk.NORMAL if is_item_selected else ctk.DISABLED)
+        set_regions.pack(side="left", padx=10, expand = True)
         
         # hamburger_img = ctk.CTkImage(Image.open("./hamburger.png"), size=(15, 15))
         # hamburger_btn = ctk.CTkButton(master=item, text = "", image = hamburger_img, width=30)
@@ -802,6 +856,11 @@ class ScrollableLabelButtonFrame(ctk.CTkScrollableFrame):
 
 
     def remove_item(self, item1):
+        msg = CTkMessagebox(title="Are you sure?", message="Removing this item will also delete every sequence entry associated with it!", icon="warning", option_1="Continue", option_2="Cancel")
+
+        if msg.get()=="Cancel":
+            return
+        
         for label1, label2, button1, button2 in zip(self.label1_list, self.label2_list, self.button1_list, self.button2_list):
             if item1 == label1.cget("text"):
                 label1.destroy()
@@ -909,8 +968,21 @@ class NewWindow(ctk.CTkToplevel):
             if isinstance(widget, ctk.CTkEntry):
                 qty_val = tk.StringVar()
                 qty_val.set(len(self.coordinates_list))
+
+                global new_seq_btn, lock_last_elem
+                if len(self.coordinates_list):
+                    new_seq_btn.configure(state=ctk.NORMAL)
+                    lock_last_elem = False
+                else:
+                    new_seq_btn.configure(state=ctk.DISABLED)
+                    lock_last_elem = True
                 widget.configure(textvariable=qty_val)
-                break
+            
+            elif isinstance(widget, tk.Label) and hasattr(widget, 'tag') and widget.tag == "hamburger":
+                if len(self.coordinates_list):
+                    self.selected_item._add_bindtag(widget)
+                else:
+                    self.selected_item._remove_bindtag(widget)
 
     def get_realtime_image(self):
         return Image.open("./a.jpg")  # Replace with your image source
@@ -992,7 +1064,7 @@ class NewWindow(ctk.CTkToplevel):
         else:
             # Not inside an existing box, start drawing a new rectangle
             print("Drawing new box")
-            self.canvas.itemconfig(self.selected_box, fill="green")
+            # self.canvas.itemconfig(self.selected_box, fill="green")
             self.selected_box = None
             self.start_x = event.x
             self.start_y = event.y
@@ -1034,14 +1106,11 @@ class NewWindow(ctk.CTkToplevel):
 
             # Check Overflow 
             if abs(x1-x0) < min_width or abs(y1-y0) < min_height or (x1 >= self.IMG_WIDTH or x1 < 0) or (y1 >= self.IMG_HEIGHT or y1 < 0) or (x0 >= self.IMG_WIDTH or x0 < 0) or (y0 >= self.IMG_HEIGHT or y0 < 0):
-                print("overflow detected")
                 pass
             # Checking for overlap
             elif self.check_overlap([min(x0,x1), min(y0,y1), max(x0,x1), max(y0,y1)], [-1,-1,-1,-1]):
-                print("overlap detected ")
                 pass
             else:
-                print(" i draw ")
                 self.last_coords = [x0, y0, x1, y1]
                 self.draw_rectangle(x0, y0, x1, y1, outline="blue", width=2, fill="green",stipple="gray25",tags="user_box")
                 self.coordinates_list.append([min(x0,x1), min(y0,y1), max(x0,x1), max(y0,y1)])
@@ -1051,7 +1120,6 @@ class NewWindow(ctk.CTkToplevel):
 
 
         else:
-            print("I am in else ")
             # This means that the user is trying to SELECT a box, and not drag it
             if(abs(self.last_click[0] - event.x) == 0 and abs(self.last_click[1] - event.y) == 0):
                 if self.selected_box:
@@ -1191,6 +1259,12 @@ def main():
     btnframe = ScrollableLabelButtonFrame(master=items_frame, root = root, width=500, corner_radius=0, height=540)
     btnframe.grid(row=0, column=4, padx=0, pady=0, sticky="nsew")
 
+    global new_seq_btn
+    new_seq_btn = ctk.CTkButton(regions_frame, text="Add New Region", state=ctk.DISABLED if len(item_list) == 0 else ctk.NORMAL, command=lambda: add_item(sortable_list))
+    
+    global lock_last_elem
+    lock_last_elem = False
+
     # Making it global so that ALL the dropdown values can be updated when a new item is added 
     global sortable_list
     sortable_list = DDListWithLabels(regions_frame, root, 650, 50, offset_x=10, offset_y=10, gap=10, item_borderwidth=1, item_relief="groove")
@@ -1209,8 +1283,6 @@ def main():
             idx+=1
 
         # new_order = [widget.value for widget in sortable_list._list_of_items]
-        
-    new_seq_btn = ctk.CTkButton(regions_frame, text="Add New Region", state=ctk.DISABLED if len(item_list) == 0 else ctk.NORMAL, command=lambda: add_item(sortable_list))
     new_seq_btn.grid(row=0, column=0, columnspan=2, sticky="n", padx=10, pady=(20,10))
 
     regions_frame.pack(expand = True, fill = tk.BOTH, side= tk.LEFT)
